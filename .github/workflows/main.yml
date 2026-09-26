@@ -24,7 +24,7 @@ jobs:
         mkdir build
         for %%f in (*.c) do (
             echo Compiling %%f...
-            cl.exe /O2 /W3 %%f /Fe:build/%%~nf.exe
+            cl.exe /O2 /W3 /DPATH_MAX=MAX_PATH /D_CRT_SECURE_NO_WARNINGS %%f /Fe:build/%%~nf.exe
         )
 
     - name: Upload Build Artifacts
