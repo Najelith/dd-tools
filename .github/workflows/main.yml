@@ -1,19 +1,22 @@
-name: Build Windows Binaries
+name: Build, Tag, and Release Windows Binaries
 
 on:
   push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
-  build:
+  build-and-release:
     runs-on: windows-latest
+    permissions:
+      contents: write  # Required to create git tags and releases
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0 # Required by the tagging tool to see the version history
 
     - name: Set up MSVC Developer Command Prompt
       uses: ilammy/msvc-dev-cmd@v1
@@ -21,14 +24,30 @@ jobs:
     - name: Compile C Tools
       shell: cmd
       run: |
-        mkdir build
+        mkdir bin
         for %%f in (*.c) do (
             echo Compiling %%f...
-            cl.exe /O2 /W3 /DPATH_MAX=260 /D_CRT_SECURE_NO_WARNINGS %%f /Fe:build/%%~nf.exe
+            cl.exe /O2 /W3 /DPATH_MAX=260 /D_CRT_SECURE_NO_WARNINGS %%f /Fe:bin/%%~nf.exe
         )
 
-    - name: Upload Build Artifacts
-      uses: actions/upload-artifact@v4
+    - name: Zip Binaries
+      shell: powershell
+      run: |
+        Compress-Archive -Path bin\*.exe -DestinationPath dd-tools-windows-x64.zip
+
+    - name: Auto-Increment and Create Tag
+      id: create_tag
+      uses: anothrNick/github-tag-action@1.71.0
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        WITH_V: true
+        DEFAULT_BUMP: patch # Options: patch (1.0.x), minor (1.x.0), major (x.0.0)
+
+    - name: Create Release and Upload Asset
+      uses: softprops/action-gh-release@v2
       with:
-        name: dd-tools-windows-x64
-        path: build/*.exe
+        files: dd-tools-windows-x64.zip
+        tag_name: ${{ steps.create_tag.outputs.new_tag }}
+        name: Release ${{ steps.create_tag.outputs.new_tag }}
+        draft: false
+        prerelease: false
